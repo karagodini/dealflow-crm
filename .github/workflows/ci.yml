@@ -1,0 +1,44 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: dealflow
+          POSTGRES_PASSWORD: dealflow
+          POSTGRES_DB: dealflow
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U dealflow -d dealflow"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+    env:
+      DATABASE_URL: postgresql://dealflow:dealflow@localhost:5432/dealflow
+      AUTH_SECRET: ci-auth-secret-7f3c9a1e5b8d4c2f6a0e9d1b3c5f7a8e
+      AUTH_URL: http://localhost:3000
+      AUTH_TRUST_HOST: "true"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm exec prisma generate
+      - run: pnpm exec prisma migrate deploy
+      - run: pnpm lint
+      - run: pnpm typecheck
+      - run: pnpm test
+      - run: pnpm build
+      - run: pnpm exec playwright install --with-deps chromium
+      - run: pnpm test:e2e
